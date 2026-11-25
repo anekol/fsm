@@ -14,14 +14,14 @@ defmodule Fsm do
       def state(%__MODULE__{state: state}), do: state
       def data(%__MODULE__{data: data}), do: data
 
-      # We need to suppress dialyzer warning, since in the second clause might
-      # never match. This can happen if every single event handler uses `Fsm`
-      # functions to explicitly set the next state.
-      @dialyzer {:no_match, change_state: 2}
-      defp change_state(%__MODULE__{} = fsm, {:action_responses, responses}),
-        do: parse_action_responses(fsm, responses)
-
-      defp change_state(%__MODULE__{} = fsm, _), do: fsm
+      # One clause, so a module whose every event handler returns action
+      # responses has no unreachable clause for Dialyzer or the type checker.
+      defp change_state(%__MODULE__{} = fsm, result) do
+        case result do
+          {:action_responses, responses} -> parse_action_responses(fsm, responses)
+          _other -> fsm
+        end
+      end
 
       defp parse_action_responses(fsm, responses) do
         Enum.reduce(responses, fsm, fn response, fsm ->
@@ -29,11 +29,11 @@ defmodule Fsm do
         end)
       end
 
-      defp handle_action_response(fsm, {:next_state, next_state}) do
+      defp handle_action_response(%__MODULE__{} = fsm, {:next_state, next_state}) do
         %__MODULE__{fsm | state: next_state}
       end
 
-      defp handle_action_response(fsm, {:new_data, new_data}) do
+      defp handle_action_response(%__MODULE__{} = fsm, {:new_data, new_data}) do
         %__MODULE__{fsm | data: new_data}
       end
 
